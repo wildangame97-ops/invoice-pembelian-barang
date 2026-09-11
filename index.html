@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoice</title>
+  <!-- Library ekspor PDF langsung -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    body {
+      background-color: #f3f4f6;
+      margin: 0;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .toolbar {
+      width: 100%;
+      max-width: 800px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .btn {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .btn-primary { background-color: #1a4f80; color: white; }
+    .btn-success { background-color: #10b981; color: white; }
+    .btn-danger {
+      background-color: #ef4444;
+      color: white;
+      padding: 4px 8px;
+      font-size: 11px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    /* Kertas Invoice Bersih (Tanpa Watermark) */
+    .invoice-paper {
+      width: 100%;
+      max-width: 800px;
+      background: white;
+      padding: 35px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #1a4f80;
+      padding-bottom: 10px;
+    }
+    .company-name {
+      color: #1a4f80;
+      font-size: 24px;
+      font-weight: 800;
+      outline: none;
+    }
+    .company-sub {
+      color: #333;
+      font-size: 13px;
+      margin-top: 4px;
+      outline: none;
+    }
+    .invoice-title-block { text-align: right; }
+    .invoice-title {
+      font-size: 28px;
+      font-weight: 900;
+      margin: 0;
+      line-height: 1;
+    }
+    .invoice-date {
+      margin-top: 6px;
+      font-size: 13px;
+      color: #333;
+    }
+
+    /* Box Klien */
+    .info-box {
+      margin-top: 20px;
+      background-color: #eaf1f8;
+      border-radius: 2px;
+      padding: 14px 18px;
+    }
+    .info-label {
+      font-weight: bold;
+      font-size: 13px;
+      color: #111;
+      margin-bottom: 6px;
+    }
+    .info-content {
+      font-size: 13px;
+      line-height: 1.5;
+      outline: none;
+    }
+
+    /* Tabel Barang */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th {
+      background-color: #1a4f80;
+      color: white;
+      text-align: left;
+      padding: 8px;
+      font-size: 12px;
+    }
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #d1d5db;
+      font-size: 12px;
+      vertical-align: middle;
+    }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+
+    input.cell-input {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 3px;
+      padding: 4px;
+      font-size: 12px;
+      background: white;
+    }
+
+    /* Ringkasan & Total */
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #f9fafb;
+      padding: 8px 14px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    .shipping-input-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .shipping-input {
+      width: 130px;
+      text-align: right;
+      padding: 4px 6px;
+      border: 1px solid #d1d5db;
+      border-radius: 3px;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    .shipping-print-text {
+      display: none;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #1a4f80;
+      color: white;
+      padding: 12px 14px;
+      margin-top: 5px;
+    }
+    .total-label { font-size: 13px; font-weight: bold; }
+    .total-amount { font-size: 20px; font-weight: bold; }
+
+    /* Footer Rekening */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 30px;
+      font-size: 12px;
+    }
+    .bank-info { font-weight: bold; line-height: 1.5; outline: none; }
+    .closing-text { text-align: right; width: 230px; line-height: 1.4; outline: none; }
+
+    /* POP-UP LAYAR KUNCI KETIKA BELUM BAYAR / HABIS MASA AKTIF */
+    #lockOverlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.95);
+      z-index: 999999;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .lock-card {
+      background: white;
+      max-width: 460px;
+      width: 100%;
+      border-radius: 10px;
+      padding: 30px 25px;
+      text-align: center;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+    .lock-icon {
+      font-size: 45px;
+      margin-bottom: 10px;
+    }
+    .lock-title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #b91c1c;
+      margin-bottom: 8px;
+    }
+    .lock-desc {
+      font-size: 13px;
+      color: #4b5563;
+      line-height: 1.5;
+      margin-bottom: 15px;
+    }
+    .bank-box {
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 6px;
+      padding: 12px;
+      text-align: left;
+      font-size: 12px;
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+    .btn-wa {
+      display: inline-block;
+      width: 100%;
+      background-color: #25d366;
+      color: white;
+      text-decoration: none;
+      padding: 10px;
+      border-radius: 5px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Layar Pengunci Berlangganan -->
+  <div id="lockOverlay">
+    <div class="lock-card">
+      <div class="lock-icon">🔒</div>
+      <div class="lock-title">Akses Invoice Terkunci</div>
+      <div class="lock-desc">
+        Masa aktif penggunaan invoice ini telah berakhir. Silakan lakukan perpanjangan langganan bulanan untuk mengaktifkan kembali akses.
+      </div>
+      <div class="bank-box">
+        <strong>Pembayaran Resmi:</strong><br>
+        • Bank BCA: <b>6930312906</b><br>
+        • Bank Mandiri: <b>1150010902130</b><br>
+        • A/N: <b>MUHAMMAD CRISTIAN FERI</b>
+      </div>
+      <a href="https://wa.me/6281234567890?text=Halo%20saya%20sudah%20transfer%20untuk%20perpanjang%20invoice" id="waBtn" class="btn-wa" target="_blank">
+        Konfirmasi Pembayaran via WhatsApp
+      </a>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn btn-success" onclick="addRow()">+ Tambah Barang</button>
+    <button class="btn btn-primary" onclick="downloadPDF()">Unduh PDF</button>
+  </div>
+
+  <div class="invoice-paper" id="invoiceArea">
+    <!-- Header Perusahaan -->
+    <div class="header">
+      <div>
+        <div class="company-name" contenteditable="true">SURYA BARU AUTAMA</div>
+        <div class="company-sub" contenteditable="true">Penjualan &amp; Pengadaan Barang</div>
+      </div>
+      <div class="invoice-title-block">
+        <h1 class="invoice-title">INVOICE</h1>
+        <div class="invoice-date">
+          Tanggal: <span contenteditable="true">10 September 2026</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Box Klien -->
+    <div class="info-box">
+      <div class="info-label">Kepada Yth.</div>
+      <div class="info-content" contenteditable="true">
+        PT MUDALAYA ENERGY INDONESIA
+      </div>
+    </div>
+
+    <!-- Tabel Daftar Barang -->
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 35px;" class="text-center">No.</th>
+          <th>Deskripsi Barang</th>
+          <th style="width: 60px;" class="text-center">Qty</th>
+          <th style="width: 70px;" class="text-center">Satuan</th>
+          <th style="width: 130px;" class="text-right">Harga Satuan</th>
+          <th style="width: 130px;" class="text-right">Jumlah</th>
+          <th style="width: 40px;" class="text-center action-col">Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="itemBody">
+        <tr>
+          <td class="text-center row-number">1</td>
+          <td><input type="text" class="cell-input" value="Rockwool Density 16 Tebal 50mm X 1200 X 15mtr"></td>
+          <td><input type="number" class="cell-input text-center qty-input" value="1" min="1" oninput="calculate()"></td>
+          <td><input type="text" class="cell-input text-center" value="Rol"></td>
+          <td><input type="number" class="cell-input text-right price-input" value="980000" oninput="calculate()"></td>
+          <td class="text-right item-total">Rp 980.000</td>
+          <td class="text-center action-col"><button class="btn-danger" onclick="deleteRow(this)">x</button></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Subtotal -->
+    <div class="summary-row" style="margin-top: 15px;">
+      <span>Subtotal Barang</span>
+      <span id="subtotalText">Rp 980.000</span>
+    </div>
+
+    <!-- Ongkos Kirim -->
+    <div class="summary-row">
+      <span>Ongkos Kirim</span>
+      <div class="shipping-input-wrapper">
+        <span id="shippingPrefix">Rp</span>
+        <input type="number" id="shippingInput" class="shipping-input" value="0" min="0" oninput="calculate()">
+        <span id="shippingPrintText" class="shipping-print-text">Rp 0</span>
+      </div>
+    </div>
+
+    <!-- Total Tagihan -->
+    <div class="total-row">
+      <span class="total-label">TOTAL TAGIHAN</span>
+      <span class="total-amount" id="totalText">Rp 980.000</span>
+    </div>
+
+    <!-- Catatan Rekening Bawah -->
+    <div class="footer">
+      <div class="bank-info" contenteditable="true">
+        <div>Bank BCA: 6930312906</div>
+        <div>Bank Mandiri: 1150010902130</div>
+        <div>A/N: MUHAMMAD CRISTIAN FERI</div>
+      </div>
+      <div class="closing-text" contenteditable="true">
+        Terima kasih atas kepercayaan dan kerja samanya.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================
+       PENGATURAN BERLANGGANAN & KUNCI OTOMATIS
+       ========================================================== */
+    // Masukkan batas tanggal aktif (Format: TAHUN-BULAN-TANGGAL)
+    // Contoh: '2026-10-15' (artinya aktif sampai 15 Oktober 2026)
+    const EXPIRATION_DATE = '2026-10-01';
+
+    // Masukkan nomor WhatsApp Anda (diawali 62) untuk konfirmasi TF
+    const NOMOR_WHATSAPP = '6285157631122'; 
+
+    function checkSubscription() {
+      const today = new Date();
+      const expire = new Date(EXPIRATION_DATE);
+      
+      // Jika waktu sekarang sudah melewati batas tanggal langganan
+      if (today > expire) {
+        document.getElementById('lockOverlay').style.display = 'flex';
+        // Nonaktifkan tombol cetak
+        document.querySelector('.toolbar').style.display = 'none';
+      }
+      
+      // Update tautan WhatsApp
+      document.getElementById('waBtn').href = 
+        `https://wa.me/${NOMOR_WHATSAPP}?text=Halo%20Admin,%20saya%20ingin%20perpanjang%20langganan%20invoice`;
+    }
+
+    // Jalankan pemeriksaan lisensi saat halaman dibuka
+    checkSubscription();
+
+    /* ==========================================================
+       FUNGSI KALKULASI & INVOICE
+       ========================================================== */
+    function formatRupiah(number) {
+      return 'Rp ' + Number(number).toLocaleString('id-ID');
+    }
+
+    function calculate() {
+      const rows = document.querySelectorAll('#itemBody tr');
+      let subtotal = 0;
+
+      rows.forEach((row, index) => {
+        row.querySelector('.row-number').innerText = index + 1;
+        const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+        const price = parseFloat(row.querySelector('.price-input').value) || 0;
+        const rowTotal = qty * price;
+
+        row.querySelector('.item-total').innerText = formatRupiah(rowTotal);
+        subtotal += rowTotal;
+      });
+
+      const shipping = parseFloat(document.getElementById('shippingInput').value) || 0;
+      const grandTotal = subtotal + shipping;
+
+      document.getElementById('subtotalText').innerText = formatRupiah(subtotal);
+      document.getElementById('shippingPrintText').innerText = formatRupiah(shipping);
+      document.getElementById('totalText').innerText = formatRupiah(grandTotal);
+    }
+
+    function addRow() {
+      const tbody = document.getElementById('itemBody');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="text-center row-number"></td>
+        <td><input type="text" class="cell-input" placeholder="Nama barang..."></td>
+        <td><input type="number" class="cell-input text-center qty-input" value="1" min="1" oninput="calculate()"></td>
+        <td><input type="text" class="cell-input text-center" value="Pcs"></td>
+        <td><input type="number" class="cell-input text-right price-input" value="0" oninput="calculate()"></td>
+        <td class="text-right item-total">Rp 0</td>
+        <td class="text-center action-col"><button class="btn-danger" onclick="deleteRow(this)">x</button></td>
+      `;
+      tbody.appendChild(tr);
+      calculate();
+    }
+
+    function deleteRow(btn) {
+      const row = btn.closest('tr');
+      const tbody = document.getElementById('itemBody');
+      if (tbody.querySelectorAll('tr').length > 1) {
+        row.remove();
+        calculate();
+      } else {
+        alert('Minimal harus ada 1 baris barang.');
+      }
+    }
+
+    function downloadPDF() {
+      const element = document.getElementById('invoiceArea');
+      
+      const actionCols = document.querySelectorAll('.action-col');
+      actionCols.forEach(el => el.style.display = 'none');
+
+      const shippingInput = document.getElementById('shippingInput');
+      const shippingPrefix = document.getElementById('shippingPrefix');
+      const shippingPrintText = document.getElementById('shippingPrintText');
+      shippingInput.style.display = 'none';
+      shippingPrefix.style.display = 'none';
+      shippingPrintText.style.display = 'inline';
+
+      const inputs = document.querySelectorAll('.cell-input');
+      inputs.forEach(input => {
+        input.style.border = 'none';
+        input.style.background = 'transparent';
+      });
+
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename: 'Invoice.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      html2pdf().set(opt).from(element).save().then(() => {
+        actionCols.forEach(el => el.style.display = '');
+        shippingInput.style.display = '';
+        shippingPrefix.style.display = '';
+        shippingPrintText.style.display = 'none';
+        inputs.forEach(input => {
+          input.style.border = '1px solid #d1d5db';
+          input.style.background = 'white';
+        });
+      });
+    }
+
+    calculate();
+  </script>
+</body>
+</html>
